@@ -95,10 +95,14 @@
           
           for (nosePoint of nosePoints) {
             let [r, g, b] = noseColourRgb[index];
-            if (blend) { 
-                [r, g, b] = makeBlendColours(noseColourRgb[index], nosePoint.x, nosePoint.y)
+            if (randomColours) {
+                [r,g,b] = randomRgb;
             }
             ctx.fillStyle = `rgb(${r},${g},${b})`;
+            if (blend) { 
+                [r2, g2, b2] = makeBlendColours([r,g,b], nosePoint.x, nosePoint.y);
+                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            }
             ctx.fillRect(nosePoint.x, nosePoint.y, 5, 5);
           }
 
@@ -113,10 +117,9 @@
             ctx.fillStyle = `rgb(${r},${g},${b})`;
 
             if (blend) { 
-                [r2, g2, b2] = makeBlendColours([r,g,b], nosePoint.x, nosePoint.y)
+                [r2, g2, b2] = makeBlendColours([r,g,b], mouthPoint.x, mouthPoint.y)
                 ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
             }
-            // ctx.fillStyle = `rgb(${r},${g},${b})`;
             ctx.fillRect(mouthPoint.x, mouthPoint.y, 5, 5);
           }
 
@@ -124,10 +127,14 @@
 
           for (eyePoint of [...leftEyePoints, ...rightEyePoints]) {
             let [r, g, b] = eyeColourRgb[index];
-            if (blend) {
-                [r, g, b] = makeBlendColours(eyeColourRgb[index], nosePoint.x, nosePoint.y)
+            if (randomColours) {
+                [r,g,b] = randomRgb;
             }
             ctx.fillStyle = `rgb(${r},${g},${b})`;
+            if (blend) {
+                [r2, g2, b2] = makeBlendColours([r,g,b], eyePoint.x, eyePoint.y);
+                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            }
             ctx.fillRect(eyePoint.x, eyePoint.y, 5, 5);
           }
         });
