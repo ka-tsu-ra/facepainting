@@ -1,0 +1,184 @@
+<video></video> <canvas></canvas> <button id="stop">🐾 Pause</button>
+<button id="ghost">👻 Turn on ghost mode</button> <button id="save">💾 Save</button>
+<button id="wipe">🚿 Wipe</button>
+<button id="blend">🍭 Blend me up</button>
+<button id="palette">Turn Palette mode on</button>
+<script src="https://unpkg.com/face-api.js@0.16.2/dist/face-api.min.js"></script>
+<script>
+  let paused = false;
+  let blend = false;
+  let ghostMode = false;
+  let ready = false;
+  let randomColours = true;
+  let palette = false;
+
+  const videoInput = document.querySelector("video");
+  const stopButton = document.getElementById("stop");
+  var canvas = document.querySelector("canvas");
+  var ctx = canvas.getContext("2d");
+
+  stopButton.onclick = () => {
+    paused = !paused;
+    stopButton.innerText = paused ? "😃 Paint!" : "🐾 Pause"
+  };
+
+  const ghostButton = document.getElementById("ghost");
+  ghostButton.onclick = () => {
+    videoInput.classList.toggle("hidden");
+    ghostMode = !ghostMode;
+    ghostButton.innerText = ghostMode ? "👻 Turn off ghost mode" : "👻 Turn on ghost mode";
+  };
+
+  const saveButton = document.getElementById("save");
+  saveButton.onclick = () => {
+    canvas.toBlob(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "facepaint-" + Date.now();
+      a.click();
+    });
+  };
+
+  const wipeButton = document.getElementById("wipe");
+  wipeButton.onclick = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const blendButton = document.getElementById('blend');
+  blendButton.onclick = () => {
+      blend = !blend;
+      blendButton.innerText = blend ? "🙅 Stop blending me" : "🍭 Blend me up";
+  }
+
+  const paletteButton = document.getElementById("palette");
+  paletteButton.onclick = () => {
+      randomColours = !randomColours;
+      palette = !palette;
+      paletteButton.innerText = palette ? "Turn Palette mode off" : "Turn Palette mode on";
+  }
+
+  async function startApp() {
+    await faceapi.loadSsdMobilenetv1Model("/models");
+    await faceapi.loadFaceLandmarkTinyModel("/models");
+    await faceapi.loadFaceLandmarkModel("/models");
+
+    var constraints = { video: { width: 1280, height: 720 } };  // Prefer camera resolution nearest to 1280x720.
+
+    const getRandomChannel = () => Math.floor(Math.random() * 256);
+    const randomRgb = [getRandomChannel(), getRandomChannel(), getRandomChannel()]
+
+    console.log('random rgb', randomRgb)
+    const noseColourRgb = [[0,255,0], [0,0,255]];
+    const mouthColourRgb = [[255,0,0], [255,255,0]];
+    const eyeColourRgb = [[102,204,255], [153,51,255]];
+
+    function makeBlendColours(colourPalette, x, y) {
+        const [r, g, b] = colourPalette;
+        const existingRgba = ctx.getImageData(x, y, 1, 1).data;
+        const [oldR, oldG, oldB] = existingRgba.slice(0,3);
+        const newR = (oldR + r) / 2;
+        const newG = (oldG + g) / 2;
+        const newB = (oldB + b) / 2;
+        return [newR, newG, newB];
+    }
+
+    async function drawOnFaces() {
+      if (paused === false) {
+        const faces = await faceapi.detectAllFaces(videoInput);
+        const facesWithLandmarks = await faceapi.detectAllFaces(videoInput).withFaceLandmarks();
+
+        facesWithLandmarks.forEach((fancyFace, index) => {
+          const mouthPoints = fancyFace.landmarks.getMouth();
+          const nosePoints = fancyFace.landmarks.getNose();
+          const leftEyePoints = fancyFace.landmarks.getLeftEye();
+          const rightEyePoints = fancyFace.landmarks.getRightEye();
+          
+          for (nosePoint of nosePoints) {
+            let [r, g, b] = noseColourRgb[index];
+            if (blend) { 
+                [r, g, b] = makeBlendColours(noseColourRgb[index], nosePoint.x, nosePoint.y)
+            }
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(nosePoint.x, nosePoint.y, 5, 5);
+          }
+
+
+
+          for (mouthPoint of mouthPoints) {
+            let [r, g, b] = mouthColourRgb[index];
+
+            if (randomColours) {
+                [r,g,b] = randomRgb;
+            }
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+            if (blend) { 
+                [r2, g2, b2] = makeBlendColours([r,g,b], nosePoint.x, nosePoint.y)
+                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            }
+            // ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(mouthPoint.x, mouthPoint.y, 5, 5);
+          }
+
+
+
+          for (eyePoint of [...leftEyePoints, ...rightEyePoints]) {
+            let [r, g, b] = eyeColourRgb[index];
+            if (blend) {
+                [r, g, b] = makeBlendColours(eyeColourRgb[index], nosePoint.x, nosePoint.y)
+            }
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(eyePoint.x, eyePoint.y, 5, 5);
+          }
+        });
+      }
+
+      window.requestAnimationFrame(drawOnFaces); // repeat the drawOnFaces every time the browser is about to repaint
+    }
+
+    navigator.mediaDevices
+      .getUserMedia(constraints)
+      .then(mediaStream => {
+        var video = document.querySelector("video");
+        video.srcObject = mediaStream;
+        video.onloadedmetadata = (e) => {
+          console.log(video);
+          console.log("in onloadedmetadata");
+          video.play();
+          const videoDimensions = faceapi.getMediaDimensions(
+            document.querySelector("video")
+          );
+          canvas.width = videoDimensions.width;
+          canvas.height = videoDimensions.height;
+          drawOnFaces();
+        };
+        console.log("end of mediastream thingy");
+        // video.onplay = function() {
+        //   drawOnFaces();
+        // };
+      })
+      .catch(err => {
+        console.log(err.name + ": " + err.message);
+      }); // always check for errors at the end.
+  }
+  startApp();
+</script>
+<style>
+  body {
+    background-color: #201c25;
+  }
+  video,
+  canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  button {
+    position: relative;
+    height: 24px;
+    border-radius: 5px;
+  }
+  .hidden {
+    display: none;
+  }
+</style>
