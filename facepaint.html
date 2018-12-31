@@ -2,40 +2,15 @@
 <button id="ghost">👻 Turn on ghost mode</button>
 <button id="save">💾 Save</button> <button id="wipe">🚿 Wipe</button>
 <button id="blend">🍭 Blend me up</button>
-<button id="palette">Turn Palette mode on</button>
 <script src="https://unpkg.com/face-api.js@0.16.2/dist/face-api.min.js"></script>
-<!-- <div id ="container">
-  <div id ="animate">😃 😃  😃  😃😃 😃    😃</div>
-</div> -->
 <script>
   let paused = false;
   let blend = false;
   let ghostMode = false;
-  let ready = false;
   let randomColours = true;
-  let palette = false;
 
   var canvas = document.querySelector("canvas");
   var ctx = canvas.getContext("2d");
-
-  if (!ready) {
-		console.log('not ready')
-		// (function myMove() {
-		// 	var elem = document.getElementById("animate");   
-		// 	var pos = 0;
-		// 	var id = setInterval(frame, 5);
-		// 	function frame() {
-		// 		if (pos == 350) {
-		// 			clearInterval(id);
-		// 		} else {
-		// 			pos++; 
-		// 			elem.style.top = 10 * pos + "px"; 
-		// 			elem.style.left = pos + "px"; 
-		// 			elem.style.fontSize = 5 * pos + "px";
-		// 		}
-		// 	}
-		// })()
-	}
 
   const videoInput = document.querySelector("video");
   const stopButton = document.getElementById("stop");
@@ -75,15 +50,6 @@
     blendButton.innerText = blend ? "🙅 Stop blending me" : "🍭 Blend me up";
   };
 
-  const paletteButton = document.getElementById("palette");
-  paletteButton.onclick = () => {
-    randomColours = !randomColours;
-    palette = !palette;
-    paletteButton.innerText = palette
-      ? "Turn Palette mode off"
-      : "Turn Palette mode on";
-  };
-
   async function startApp() {
     await faceapi.loadSsdMobilenetv1Model("/models");
     await faceapi.loadFaceLandmarkTinyModel("/models");
@@ -92,20 +58,13 @@
     var constraints = { video: { width: 1280, height: 720 } }; // Prefer camera resolution nearest to 1280x720.
 
     const getRandomChannel = () => Math.floor(Math.random() * 256);
-    const randomRgb = [
-      getRandomChannel(),
-      getRandomChannel(),
-      getRandomChannel()
-    ];
 
     function* rgbGenerator() {
-      while (true) {
-        yield getRandomChannel();
-      }
+			yield getRandomChannel();
+			yield getRandomChannel();
+			yield getRandomChannel();
     }
-    let genRandomChannel = rgbGenerator();
 
-    console.log("random rgb", randomRgb);
     const noseColourRgb = [[0, 255, 0], [0, 0, 255]];
     const mouthColourRgb = [[255, 0, 0], [255, 255, 0]];
     const eyeColourRgb = [[102, 204, 255], [153, 51, 255]];
@@ -119,8 +78,10 @@
       const newB = (oldB + b) / 2;
       return [newR, newG, newB];
 		}
-		
-		let [e,f,g] = [genRandomChannel.next(), genRandomChannel.next(), genRandomChannel.next()]
+
+		const randomMouthPalette = [...rgbGenerator()];
+		const randomNosePalette = [...rgbGenerator()];
+		const randomEyePalette = [...rgbGenerator()];
 
     async function drawOnFaces() {
       if (paused === false) {
@@ -133,15 +94,14 @@
           const mouthPoints = fancyFace.landmarks.getMouth();
           const nosePoints = fancyFace.landmarks.getNose();
           const leftEyePoints = fancyFace.landmarks.getLeftEye();
-          const rightEyePoints = fancyFace.landmarks.getRightEye();
+					const rightEyePoints = fancyFace.landmarks.getRightEye();
 
           for (nosePoint of nosePoints) {
-            let [r, g, b] = noseColourRgb[index];
-            if (randomColours) {
-							[r, g, b] = randomRgb;
-							console.log('nose non-generated rgb: ', r, g, b)
-            }
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
+						let [r, g, b] = noseColourRgb[index];
+						if (randomColours) {
+							[r,g,b] = randomNosePalette;
+						}
+						ctx.fillStyle = `rgb(${r},${g},${b})`;
             if (blend) {
               [r2, g2, b2] = makeBlendColours(
                 [r, g, b],
@@ -154,33 +114,29 @@
           }
 
           for (mouthPoint of mouthPoints) {
-						// let [r, g, b] = mouthColourRgb[index];
+						let [r, g, b] = mouthColourRgb[index];
 						
 
-            // if (randomColours) {
-            //   // [r, g, b] = randomRgb;
-						// 	[r,g,b] = [genRandomChannel.next(), genRandomChannel.next(), genRandomChannel.next()]
-						// 	console.log('mouth generated rgb: ', r, g, b)
-            // }
-            ctx.fillStyle = `rgb(${e},${f},${g})`;
+            if (randomColours) {
+							[r,g,b] = randomMouthPalette;
+            }
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
 
-            // if (blend) {
-            //   [r2, g2, b2] = makeBlendColours(
-            //     [r, g, b],
-            //     mouthPoint.x,
-            //     mouthPoint.y
-            //   );
-            //   ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-            // }
+            if (blend) {
+              [r2, g2, b2] = makeBlendColours(
+                [r, g, b],
+                mouthPoint.x,
+                mouthPoint.y
+              );
+              ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            }
             ctx.fillRect(mouthPoint.x, mouthPoint.y, 5, 5);
           }
 
           for (eyePoint of [...leftEyePoints, ...rightEyePoints]) {
             let [r, g, b] = eyeColourRgb[index];
             if (randomColours) {
-							// [r, g, b] = randomRgb;
-							[r,g,b] = [genRandomChannel.next(), genRandomChannel.next(), genRandomChannel.next()]
-							console.log('eye generated rgb: ', r, g, b)
+							[r,g,b] = randomEyePalette;
             }
             ctx.fillStyle = `rgb(${r},${g},${b})`;
             if (blend) {
@@ -205,26 +161,16 @@
         var video = document.querySelector("video");
         video.srcObject = mediaStream;
         video.onloadedmetadata = e => {
-          console.log(video);
           console.log("in onloadedmetadata");
           video.play();
-          const videoDimensions = faceapi.getMediaDimensions(
-            document.querySelector("video")
-          );
+          const videoDimensions = faceapi.getMediaDimensions(video);
 
           canvas.width = videoDimensions.width;
 					canvas.height = videoDimensions.height;
-					// const smiley = document.getElementById("animate");
-          ready = true;
-          console.log("ready now");
 					
           drawOnFaces();
-					// smiley.parentNode.removeChild(smiley);
         };
         console.log("end of mediastream thingy");
-        video.onplay = function() {
-          //   ready = true;
-        };
       })
       .catch(err => {
         console.log(err.name + ": " + err.message);
@@ -250,14 +196,4 @@
   .hidden {
     display: none;
   }
-	/* #container {
-		width: 400px;
-		height: 400px;
-		position: relative;
-	}
-	#animate {
-		/* width: 50px;
-		height: 50px; */
-		position: absolute;
-	} */
 </style>
