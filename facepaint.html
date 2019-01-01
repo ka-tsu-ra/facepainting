@@ -56,9 +56,9 @@
 	changeColoursButton.onclick = () => refreshColours = !refreshColours;
 
   async function startApp() {
-    await faceapi.loadSsdMobilenetv1Model("/models");
-    await faceapi.loadFaceLandmarkTinyModel("/models");
-    await faceapi.loadFaceLandmarkModel("/models");
+    await faceapi.loadSsdMobilenetv1Model("/");
+    await faceapi.loadFaceLandmarkTinyModel("/");
+    await faceapi.loadFaceLandmarkModel("/");
 
     var constraints = { video: { width: 1280, height: 720 } }; // Prefer camera resolution nearest to 1280x720.
 
