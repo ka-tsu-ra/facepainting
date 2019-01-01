@@ -1,32 +1,34 @@
 <video></video> <canvas></canvas> <button id="stop">🐾 Pause</button>
-<button id="ghost">👻 Turn on ghost mode</button> <button id="save">💾 Save</button>
-<button id="wipe">🚿 Wipe</button>
+<button id="ghost">👻 Camera off!</button>
+<button id="save">💾 Save</button> <button id="wipe">🚿 Wipe</button>
 <button id="blend">🍭 Blend me up</button>
-<button id="palette">Turn Palette mode on</button>
+<button id="change-colours">🌈 Change up colours</button>
 <script src="https://unpkg.com/face-api.js@0.16.2/dist/face-api.min.js"></script>
 <script>
   let paused = false;
   let blend = false;
   let ghostMode = false;
-  let ready = false;
-  let randomColours = true;
-  let palette = false;
+	let randomColours = true;
+	let refreshColours = false;
 
-  const videoInput = document.querySelector("video");
-  const stopButton = document.getElementById("stop");
   var canvas = document.querySelector("canvas");
   var ctx = canvas.getContext("2d");
 
+  const videoInput = document.querySelector("video");
+  const stopButton = document.getElementById("stop");
+
   stopButton.onclick = () => {
     paused = !paused;
-    stopButton.innerText = paused ? "😃 Paint!" : "🐾 Pause"
+    stopButton.innerText = paused ? "😃 Paint!" : "🐾 Pause";
   };
 
   const ghostButton = document.getElementById("ghost");
   ghostButton.onclick = () => {
     videoInput.classList.toggle("hidden");
     ghostMode = !ghostMode;
-    ghostButton.innerText = ghostMode ? "👻 Turn off ghost mode" : "👻 Turn on ghost mode";
+    ghostButton.innerText = ghostMode
+      ? "🎥 Camera on!"
+      : "👻 Camera off!";
   };
 
   const saveButton = document.getElementById("save");
@@ -44,97 +46,132 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const blendButton = document.getElementById('blend');
+  const blendButton = document.getElementById("blend");
   blendButton.onclick = () => {
-      blend = !blend;
-      blendButton.innerText = blend ? "🙅 Stop blending me" : "🍭 Blend me up";
-  }
-
-  const paletteButton = document.getElementById("palette");
-  paletteButton.onclick = () => {
-      randomColours = !randomColours;
-      palette = !palette;
-      paletteButton.innerText = palette ? "Turn Palette mode off" : "Turn Palette mode on";
-  }
+    blend = !blend;
+    blendButton.innerText = blend ? "🙅 Stop blending me" : "🍭 Blend me up";
+	};
+	
+	const changeColoursButton = document.getElementById('change-colours');
+	changeColoursButton.onclick = () => refreshColours = !refreshColours;
 
   async function startApp() {
     await faceapi.loadSsdMobilenetv1Model("/models");
     await faceapi.loadFaceLandmarkTinyModel("/models");
     await faceapi.loadFaceLandmarkModel("/models");
 
-    var constraints = { video: { width: 1280, height: 720 } };  // Prefer camera resolution nearest to 1280x720.
+    var constraints = { video: { width: 1280, height: 720 } }; // Prefer camera resolution nearest to 1280x720.
 
     const getRandomChannel = () => Math.floor(Math.random() * 256);
-    const randomRgb = [getRandomChannel(), getRandomChannel(), getRandomChannel()]
 
-    console.log('random rgb', randomRgb)
-    const noseColourRgb = [[0,255,0], [0,0,255]];
-    const mouthColourRgb = [[255,0,0], [255,255,0]];
-    const eyeColourRgb = [[102,204,255], [153,51,255]];
+		function* rgbGenerator() { // returns random 0-255 3 times
+				yield [getRandomChannel(), getRandomChannel(), getRandomChannel()];
+		}
+
+		function* generator2() {
+			const cache = {};
+			let index;
+			while (true) {
+				if (!(index in cache)) {
+					cache[index] = rgbGenerator().next().value;
+				}
+				index = yield cache[index]; // this does not actually assign yield cache[index] to a variable 'index'
+			}
+		}
+
+		const iterator = generator2();
+		iterator.next();
+
+		let randomNosePalette = generator2();
+		randomNosePalette.next();
+		let randomMouthPalette = generator2();
+		randomMouthPalette.next();
+		let randomEyePalette = generator2();
+		randomEyePalette.next();
 
     function makeBlendColours(colourPalette, x, y) {
-        const [r, g, b] = colourPalette;
-        const existingRgba = ctx.getImageData(x, y, 1, 1).data;
-        const [oldR, oldG, oldB] = existingRgba.slice(0,3);
-        const newR = (oldR + r) / 2;
-        const newG = (oldG + g) / 2;
-        const newB = (oldB + b) / 2;
-        return [newR, newG, newB];
-    }
+      const [r, g, b] = colourPalette;
+      const existingRgba = ctx.getImageData(x, y, 1, 1).data;
+      const [oldR, oldG, oldB] = existingRgba.slice(0, 3);
+      const newR = (oldR + r) / 2;
+      const newG = (oldG + g) / 2;
+      const newB = (oldB + b) / 2;
+      return [newR, newG, newB];
+		}
 
     async function drawOnFaces() {
+			if (refreshColours) {
+				randomNosePalette = generator2();
+				randomNosePalette.next();
+				randomMouthPalette = generator2();
+				randomMouthPalette.next();
+				randomEyePalette = generator2();
+				randomEyePalette.next();
+				refreshColours = false;
+			}
+
       if (paused === false) {
         const faces = await faceapi.detectAllFaces(videoInput);
-        const facesWithLandmarks = await faceapi.detectAllFaces(videoInput).withFaceLandmarks();
+        const facesWithLandmarks = await faceapi
+          .detectAllFaces(videoInput)
+          .withFaceLandmarks();
 
         facesWithLandmarks.forEach((fancyFace, index) => {
           const mouthPoints = fancyFace.landmarks.getMouth();
           const nosePoints = fancyFace.landmarks.getNose();
           const leftEyePoints = fancyFace.landmarks.getLeftEye();
-          const rightEyePoints = fancyFace.landmarks.getRightEye();
-          
+					const rightEyePoints = fancyFace.landmarks.getRightEye();
+
           for (nosePoint of nosePoints) {
-            let [r, g, b] = noseColourRgb[index];
-            if (randomColours) {
-                [r,g,b] = randomRgb;
-            }
-            ctx.fillStyle = `rgb(${r},${g},${b})`;
-            if (blend) { 
-                [r2, g2, b2] = makeBlendColours([r,g,b], nosePoint.x, nosePoint.y);
-                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-            }
+						let r, g, b;
+						if (randomColours) {
+							[r,g,b] = randomNosePalette.next(index).value;
+						};
+						ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+            if (blend) {
+              [r2, g2, b2] = makeBlendColours(
+                [r, g, b],
+                nosePoint.x,
+                nosePoint.y
+              );
+              ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            };
             ctx.fillRect(nosePoint.x, nosePoint.y, 5, 5);
           }
 
-
-
           for (mouthPoint of mouthPoints) {
-            let [r, g, b] = mouthColourRgb[index];
-
+						let r, g, b;
             if (randomColours) {
-                [r,g,b] = randomRgb;
-            }
+							[r,g,b] = randomMouthPalette.next(index).value;
+            };
             ctx.fillStyle = `rgb(${r},${g},${b})`;
 
-            if (blend) { 
-                [r2, g2, b2] = makeBlendColours([r,g,b], mouthPoint.x, mouthPoint.y)
-                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            if (blend) {
+              [r2, g2, b2] = makeBlendColours(
+                [r, g, b],
+                mouthPoint.x,
+                mouthPoint.y
+              );
+              ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
             }
             ctx.fillRect(mouthPoint.x, mouthPoint.y, 5, 5);
           }
 
-
-
           for (eyePoint of [...leftEyePoints, ...rightEyePoints]) {
-            let [r, g, b] = eyeColourRgb[index];
+            let r, g, b;
             if (randomColours) {
-                [r,g,b] = randomRgb;
-            }
+							[r,g,b] = randomEyePalette.next(index).value;
+            };
             ctx.fillStyle = `rgb(${r},${g},${b})`;
             if (blend) {
-                [r2, g2, b2] = makeBlendColours([r,g,b], eyePoint.x, eyePoint.y);
-                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-            }
+              [r2, g2, b2] = makeBlendColours(
+                [r, g, b],
+                eyePoint.x,
+                eyePoint.y
+              );
+              ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+            };
             ctx.fillRect(eyePoint.x, eyePoint.y, 5, 5);
           }
         });
@@ -148,21 +185,17 @@
       .then(mediaStream => {
         var video = document.querySelector("video");
         video.srcObject = mediaStream;
-        video.onloadedmetadata = (e) => {
-          console.log(video);
+        video.onloadedmetadata = e => {
           console.log("in onloadedmetadata");
           video.play();
-          const videoDimensions = faceapi.getMediaDimensions(
-            document.querySelector("video")
-          );
+          const videoDimensions = faceapi.getMediaDimensions(video);
+
           canvas.width = videoDimensions.width;
-          canvas.height = videoDimensions.height;
+					canvas.height = videoDimensions.height;
+					
           drawOnFaces();
         };
         console.log("end of mediastream thingy");
-        // video.onplay = function() {
-        //   drawOnFaces();
-        // };
       })
       .catch(err => {
         console.log(err.name + ": " + err.message);
