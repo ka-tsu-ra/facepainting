@@ -1,13 +1,15 @@
 <video></video> <canvas></canvas> <button id="stop">🐾 Pause</button>
-<button id="ghost">👻 Turn on ghost mode</button>
+<button id="ghost">👻 Camera off!</button>
 <button id="save">💾 Save</button> <button id="wipe">🚿 Wipe</button>
 <button id="blend">🍭 Blend me up</button>
+<button id="change-colours">🌈 Change up colours</button>
 <script src="https://unpkg.com/face-api.js@0.16.2/dist/face-api.min.js"></script>
 <script>
   let paused = false;
   let blend = false;
   let ghostMode = false;
-  let randomColours = true;
+	let randomColours = true;
+	let refreshColours = false;
 
   var canvas = document.querySelector("canvas");
   var ctx = canvas.getContext("2d");
@@ -25,8 +27,8 @@
     videoInput.classList.toggle("hidden");
     ghostMode = !ghostMode;
     ghostButton.innerText = ghostMode
-      ? "👻 Turn off ghost mode"
-      : "👻 Turn on ghost mode";
+      ? "🎥 Camera on!"
+      : "👻 Camera off!";
   };
 
   const saveButton = document.getElementById("save");
@@ -48,7 +50,10 @@
   blendButton.onclick = () => {
     blend = !blend;
     blendButton.innerText = blend ? "🙅 Stop blending me" : "🍭 Blend me up";
-  };
+	};
+	
+	const changeColoursButton = document.getElementById('change-colours');
+	changeColoursButton.onclick = () => refreshColours = !refreshColours;
 
   async function startApp() {
     await faceapi.loadSsdMobilenetv1Model("/models");
@@ -59,15 +64,30 @@
 
     const getRandomChannel = () => Math.floor(Math.random() * 256);
 
-    function* rgbGenerator() {
-			yield getRandomChannel();
-			yield getRandomChannel();
-			yield getRandomChannel();
-    }
+		function* rgbGenerator() { // returns random 0-255 3 times
+				yield [getRandomChannel(), getRandomChannel(), getRandomChannel()];
+		}
 
-    const noseColourRgb = [[0, 255, 0], [0, 0, 255]];
-    const mouthColourRgb = [[255, 0, 0], [255, 255, 0]];
-    const eyeColourRgb = [[102, 204, 255], [153, 51, 255]];
+		function* generator2() {
+			const cache = {};
+			let index;
+			while (true) {
+				if (!(index in cache)) {
+					cache[index] = rgbGenerator().next().value;
+				}
+				index = yield cache[index]; // this does not actually assign yield cache[index] to a variable 'index'
+			}
+		}
+
+		const iterator = generator2();
+		iterator.next();
+
+		let randomNosePalette = generator2();
+		randomNosePalette.next();
+		let randomMouthPalette = generator2();
+		randomMouthPalette.next();
+		let randomEyePalette = generator2();
+		randomEyePalette.next();
 
     function makeBlendColours(colourPalette, x, y) {
       const [r, g, b] = colourPalette;
@@ -79,11 +99,17 @@
       return [newR, newG, newB];
 		}
 
-		const randomMouthPalette = [...rgbGenerator()];
-		const randomNosePalette = [...rgbGenerator()];
-		const randomEyePalette = [...rgbGenerator()];
-
     async function drawOnFaces() {
+			if (refreshColours) {
+				randomNosePalette = generator2();
+				randomNosePalette.next();
+				randomMouthPalette = generator2();
+				randomMouthPalette.next();
+				randomEyePalette = generator2();
+				randomEyePalette.next();
+				refreshColours = false;
+			}
+
       if (paused === false) {
         const faces = await faceapi.detectAllFaces(videoInput);
         const facesWithLandmarks = await faceapi
@@ -97,11 +123,12 @@
 					const rightEyePoints = fancyFace.landmarks.getRightEye();
 
           for (nosePoint of nosePoints) {
-						let [r, g, b] = noseColourRgb[index];
+						let r, g, b;
 						if (randomColours) {
-							[r,g,b] = randomNosePalette;
-						}
+							[r,g,b] = randomNosePalette.next(index).value;
+						};
 						ctx.fillStyle = `rgb(${r},${g},${b})`;
+
             if (blend) {
               [r2, g2, b2] = makeBlendColours(
                 [r, g, b],
@@ -109,17 +136,15 @@
                 nosePoint.y
               );
               ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-            }
+            };
             ctx.fillRect(nosePoint.x, nosePoint.y, 5, 5);
           }
 
           for (mouthPoint of mouthPoints) {
-						let [r, g, b] = mouthColourRgb[index];
-						
-
+						let r, g, b;
             if (randomColours) {
-							[r,g,b] = randomMouthPalette;
-            }
+							[r,g,b] = randomMouthPalette.next(index).value;
+            };
             ctx.fillStyle = `rgb(${r},${g},${b})`;
 
             if (blend) {
@@ -134,10 +159,10 @@
           }
 
           for (eyePoint of [...leftEyePoints, ...rightEyePoints]) {
-            let [r, g, b] = eyeColourRgb[index];
+            let r, g, b;
             if (randomColours) {
-							[r,g,b] = randomEyePalette;
-            }
+							[r,g,b] = randomEyePalette.next(index).value;
+            };
             ctx.fillStyle = `rgb(${r},${g},${b})`;
             if (blend) {
               [r2, g2, b2] = makeBlendColours(
@@ -146,7 +171,7 @@
                 eyePoint.y
               );
               ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-            }
+            };
             ctx.fillRect(eyePoint.x, eyePoint.y, 5, 5);
           }
         });
